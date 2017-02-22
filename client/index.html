@@ -1,13 +1,89 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script src="/socket.io/socket.io.js"></script>
     <script src="https://npmcdn.com/babel-core@5.8.38/browser.min.js"></script>
     <script type="text/babel" >
-        "use strict";
-    
+      "use strict";
+      
+      let socket;
+      let ctx;
+      let draws = { };
+      let id;
+
+      const send = (pos) => {
+        const date = new Date;
+        const square = {
+          x: pos.x - 50,
+          y: pos.y - 50,
+          id: id,
+          drawTime: date.getTime(),
+        };
+        
+        draws[square.id] = square;
+        
+        socket.emit('sendUpdate', square);
+      };
+
+      const receive = (data) => {
+        if (draws[data.id]) {
+          if (draws[data.id].drawTime >= data.drawTime) {
+            return;
+          }
+        }
+        
+        draws[data.id] = data;
+      };
+
+      const draw = () => {
+        ctx.clearRect(0, 0, 500, 500);
+        
+        let keys = Object.keys(draws);
+        
+        for (let i = 0; i < keys.length; i++) {
+          const drawCall = draws[keys[i]];
+          
+          if (drawCall.id === id) {
+            ctx.fillStyle = 'red';
+          } else {
+            ctx.fillStyle = 'black';
+          }
+          
+          ctx.fillRect(drawCall.x, drawCall.y, 100, 100);
+        }
+        
+        requestAnimationFrame(draw);
+      }
+      
+      const join = (data) => {
+        id = data.id;
+        draws = data.draws;
+      }
+      
+      const init = () => {
+        socket = io.connect();
+        
+        const canvas = document.querySelector('#canvas');
+        ctx = canvas.getContext('2d');
+        
+        canvas.addEventListener('click', (e) => {
+          send({x: e.x - 9, y: e.y - 9});
+        });
+        
+        socket.on('join', join);
+        socket.on('receiveUpdate', receive);
+        socket.on('deleteID', (data) => {
+          delete draws[data.id];
+        });
+        
+        requestAnimationFrame(draw);
+      };
+      
+      window.onload = init;
+
     </script>
 </head>
 <body>
-
+  <canvas id="canvas" width=500 height=500 style="border: 1px solid black"></canvas>
 </body>
 </html>
